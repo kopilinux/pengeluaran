@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pencatat Pengeluaran Harian</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0D9488"> <link rel="apple-touch-icon" href="icons/icon-192x192.png"> <style>
+        :root {
+            --bg-primary: #F3F4F6;
+            --bg-secondary: #E5E7EB;
+            --bg-accent: #FFFFFF;
+            --text-primary: #1F2937;
+            --text-secondary: #4B5563;
+            --header-bg: #0D9488; /* teal-600 */
+            --header-text: #FFFFFF;
+            --bubble-user-bg: #DCF8C6;
+            --bubble-user-text: #1F2937;
+            --bubble-app-bg: #FFFFFF;
+            --bubble-app-text: #1F2937;
+            --bubble-app-border: #D1D5DB;
+            --button-bg: #0D9488;
+            --button-text: #FFFFFF;
+            --input-border: #9CA3AF;
+            --input-focus-ring: #0D9488;
+            --loader-top-border: #0D9488;
+            --menu-bg: #FFFFFF;
+            --menu-text: #1F2937;
+            --menu-hover-bg: #F3F4F6;
+            --modal-bg: #FFFFFF;
+            --modal-text: #1F2937;
+            --modal-overlay-bg: rgba(0,0,0,0.5);
+            --default-chat-bg-color: #ECE5DD;
+        }
+
+        html.dark {
+            --bg-primary: #1F2937;
+            --bg-secondary: #374151;
+            --bg-accent: #4B5563;
+            --text-primary: #F3F4F6;
+            --text-secondary: #D1D5DB;
+            --header-bg: #0F766E; /* teal-700 */
+            --header-text: #F3F4F6;
+            --bubble-user-bg: #075E54;
+            --bubble-user-text: #F3F4F6;
+            --bubble-app-bg: #374151;
+            --bubble-app-text: #F3F4F6;
+            --bubble-app-border: #4B5563;
+            --button-bg: #0F766E;
+            --button-text: #F3F4F6;
+            --input-border: #6B7280;
+            --input-focus-ring: #0F766E;
+            --loader-top-border: #14B8A6;
+            --menu-bg: #374151;
+            --menu-text: #F3F4F6;
+            --menu-hover-bg: #4B5563;
+            --modal-bg: #374151;
+            --modal-text: #F3F4F6;
+            --modal-overlay-bg: rgba(0,0,0,0.7);
+            --default-chat-bg-color: #08313A;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior-y: contain;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        html, body { height: 100%; overflow: hidden; }
+        .app-container {
+            display: flex; flex-direction: column;
+            height: 100vh; width: 100vw;
+            background-color: var(--bg-secondary);
+        }
+        .app-header { background-color: var(--header-bg); color: var(--header-text); }
+        #chat-messages {
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        #chat-messages::-webkit-scrollbar-thumb { background-color: var(--text-secondary); }
+        #chat-messages { scrollbar-color: var(--text-secondary) var(--bg-secondary); }
+        .chat-bubble-container { display: flex; margin-bottom: 8px; }
+        .chat-bubble-container.user { justify-content: flex-end; }
+        .chat-bubble-container.app { justify-content: flex-start; }
+        .chat-bubble {
+            max-width: 75%; padding: 10px 14px; border-radius: 20px;
+            word-wrap: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .chat-bubble-user {
+            background-color: var(--bubble-user-bg); color: var(--bubble-user-text);
+            border-bottom-right-radius: 5px;
+        }
+        .chat-bubble-app {
+            background-color: var(--bubble-app-bg); color: var(--bubble-app-text);
+            border: 1px solid var(--bubble-app-border); border-bottom-left-radius: 5px;
+        }
+        .app-footer {
+            background-color: var(--bg-secondary);
+            border-top: 1px solid var(--bubble-app-border);
+        }
+        #message-input {
+            background-color: var(--bg-accent); color: var(--text-primary);
+            border: 1px solid var(--input-border);
+        }
+        #message-input:focus { --tw-ring-color: var(--input-focus-ring); }
+        #send-button { background-color: var(--button-bg); color: var(--button-text); }
+        #send-button:hover { filter: brightness(110%); }
+        .loader {
+            border: 4px solid var(--bg-secondary); border-top: 4px solid var(--loader-top-border);
+            border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite;
+        }
+        #full-screen-loader { background-color: var(--modal-overlay-bg); }
+        #full-screen-loader p { color: var(--header-text); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content {
+            display: none; position: absolute; right: 0;
+            background-color: var(--menu-bg);
+            min-width: 220px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 100; border-radius: 8px; padding: 8px 0;
+        }
+        .dropdown-content button {
+            color: var(--menu-text); padding: 10px 16px;
+            text-decoration: none; display: block; width: 100%;
+            text-align: left; background: none; border: none; cursor: pointer;
+        }
+        .dropdown-content button:hover { background-color: var(--menu-hover-bg); }
+        .dropdown:hover .dropdown-content, .dropdown-content.show { display: block; }
+
+        .modal { background-color: var(--modal-overlay-bg); }
+        .modal-content { background-color: var(--modal-bg); color: var(--modal-text); }
+        .modal-content input[type="url"], .modal-content input[type="text"] {
+             background-color: var(--bg-accent); color: var(--text-primary);
+             border: 1px solid var(--input-border);
+        }
+        .color-swatch {
+            width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .color-swatch.selected { border-color: var(--input-focus-ring); }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header p-4 flex items-center justify-between flex-shrink-0">
+            <div class="flex items-center">
+                 <img src="icons/icon-48x48.png" alt="Logo Aplikasi" class="w-10 h-10 mr-3 p-1 bg-white rounded-full">
+                <div>
+                    <h1 class="text-xl font-semibold">Asisten Keuangan</h1>
+                    <p id="user-status" class="text-sm opacity-80">Lokal</p>
+                </div>
+            </div>
+            <div class="dropdown">
+                <button id="menu-button" class="p-2 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path fill-rule="evenodd" d="M10.5 6a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm0 6a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm0 6a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <div id="dropdown-menu" class="dropdown-content">
+                    <button id="dark-mode-toggle">Mode Gelap: Mati</button>
+                    <button id="change-background-button">Ubah Background Chat</button>
+                    <button id="backup-data">Backup Data</button>
+                    <button id="restore-data-button">Restore Data</button>
+                    <input type="file" id="restore-data-input" class="hidden" accept=".json">
+                </div>
+            </div>
+        </header>
+
+        <div id="chat-messages" class="flex-1 p-4 space-y-1 overflow-y-auto">
+            </div>
+
+        <div id="full-screen-loader" class="fixed inset-0 flex flex-col items-center justify-center z-[100] hidden">
+            <div class="loader mb-3"></div>
+            <p class="text-lg text-white">Memproses...</p>
+        </div>
+
+        <footer class="app-footer p-3 flex-shrink-0">
+            <div class="flex items-center">
+                <input type="text" id="message-input" class="flex-1 p-3 rounded-full focus:outline-none focus:ring-2 shadow-sm" placeholder="Ketik pengeluaran atau perintah...">
+                <button id="send-button" class="ml-3 p-3 rounded-full focus:outline-none focus:ring-2 shadow-md transition-transform transform hover:scale-105">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                    </svg>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <div id="background-modal" class="modal fixed inset-0 flex items-center justify-center z-[90] hidden">
+        <div class="modal-content p-6 rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold">Ubah Background Chat</h3>
+                <button id="close-modal-button" class="text-2xl font-bold hover:text-red-500">&times;</button>
+            </div>
+            <div>
+                <h4 class="text-md font-medium mb-2">Pilih Warna:</h4>
+                <div id="color-palette" class="flex flex-wrap gap-2 mb-4"></div>
+
+                <h4 class="text-md font-medium mb-2">URL Gambar:</h4>
+                <input type="url" id="image-url-input" class="w-full p-2 border rounded mb-2" placeholder="https://example.com/image.png">
+                <button id="apply-image-url" class="w-full bg-blue-500 hover:bg-blue-600 text-white p-2 rounded mb-4">Terapkan dari URL</button>
+
+                <h4 class="text-md font-medium mb-2">Unggah Gambar:</h4>
+                <input type="file" id="image-upload-input" class="hidden" accept="image/*">
+                <button id="trigger-image-upload" class="w-full bg-green-500 hover:bg-green-600 text-white p-2 rounded mb-4">Pilih Gambar dari Perangkat</button>
+                
+                <button id="reset-background" class="w-full bg-gray-500 hover:bg-gray-600 text-white p-2 rounded mt-2">Reset ke Default</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const chatMessagesContainer = document.getElementById('chat-messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const fullScreenLoader = document.getElementById('full-screen-loader');
+
+        const menuButton = document.getElementById('menu-button');
+        const dropdownMenu = document.getElementById('dropdown-menu');
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const backupDataButton = document.getElementById('backup-data');
+        const restoreDataButton = document.getElementById('restore-data-button');
+        const restoreDataInput = document.getElementById('restore-data-input');
+        const changeBackgroundButton = document.getElementById('change-background-button');
+
+        const backgroundModal = document.getElementById('background-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const colorPaletteContainer = document.getElementById('color-palette');
+        const imageUrlInput = document.getElementById('image-url-input');
+        const applyImageUrlButton = document.getElementById('apply-image-url');
+        const imageUploadInput = document.getElementById('image-upload-input');
+        const triggerImageUploadButton = document.getElementById('trigger-image-upload');
+        const resetBackgroundButton = document.getElementById('reset-background');
+
+        const APP_DATA_KEY = 'expenseTrackerData_v4_pwa'; // Version up
+        let appData = {
+            expenses: [],
+            darkMode: false,
+            chatBackground: { type: 'color', value: getComputedStyle(document.documentElement).getPropertyValue('--default-chat-bg-color').trim(), isDefault: true }
+        };
+
+        const PREDEFINED_COLORS = [
+            { name: 'Default Green', value: '#ECE5DD', darkValue: '#08313A' },
+            { name: 'Light Blue', value: '#E0F2F7', darkValue: '#01579B' },
+            { name: 'Light Gray', value: '#F3F4F6', darkValue: '#4B5563' },
+            { name: 'White', value: '#FFFFFF', darkValue: '#374151' },
+            { name: 'Soft Pink', value: '#FCE4EC', darkValue: '#880E4F' },
+            { name: 'Pale Yellow', value: '#FFF9C4', darkValue: '#F57F17' }
+        ];
+
+        // --- PWA Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker: Pendaftaran berhasil, scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker: Pendaftaran gagal: ', error);
+                    });
+            });
+        }
+
+        // --- Local Storage ---
+        function loadAppData() {
+            const data = localStorage.getItem(APP_DATA_KEY);
+            if (data) {
+                const parsedData = JSON.parse(data);
+                appData = { ...appData, ...parsedData };
+                appData.expenses = appData.expenses.map(exp => ({ ...exp, timestamp: new Date(exp.timestamp) }));
+                if (!appData.chatBackground || typeof appData.chatBackground.isDefault === 'undefined') { // Ensure new structure
+                    appData.chatBackground = { type: 'color', value: getCurrentDefaultBgColor(), isDefault: true };
+                }
+            }
+            // Ensure theme-color meta tag is updated based on loaded dark mode preference
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', appData.darkMode ? '#0F766E' : '#0D9488');
+            applyDarkModePreference();
+            applyChatBackground();
+        }
+        function saveAppData() { localStorage.setItem(APP_DATA_KEY, JSON.stringify(appData)); }
+        function getCurrentDefaultBgColor() { return getComputedStyle(document.documentElement).getPropertyValue('--default-chat-bg-color').trim(); }
+
+        // --- Dark Mode ---
+        function applyDarkModePreference() {
+            const isDark = appData.darkMode;
+            document.documentElement.classList.toggle('dark', isDark);
+            darkModeToggle.textContent = `Mode Gelap: ${isDark ? 'Aktif' : 'Mati'}`;
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark ? '#0F766E' : '#0D9488'); // Update theme-color for PWA
+            if (appData.chatBackground.isDefault) {
+                 appData.chatBackground = { type: 'color', value: getCurrentDefaultBgColor(), isDefault: true };
+                 applyChatBackground();
+            }
+            populateColorPalette(); // Repopulate palette with correct dark/light colors
+        }
+        darkModeToggle.addEventListener('click', () => {
+            appData.darkMode = !appData.darkMode;
+            applyDarkModePreference();
+            saveAppData();
+            closeMenu();
+        });
+
+        // --- Chat Background ---
+        function applyChatBackground() {
+            const bg = appData.chatBackground;
+            if (bg.type === 'color') {
+                chatMessagesContainer.style.backgroundColor = bg.value;
+                chatMessagesContainer.style.backgroundImage = 'none';
+            } else if (bg.type === 'image_url' || bg.type === 'image_upload') {
+                if (bg.value && (bg.value.startsWith('http') || bg.value.startsWith('data:image'))) {
+                    // For URL, we can use it directly. For dataURL, it's already self-contained.
+                    chatMessagesContainer.style.backgroundImage = `url('${bg.value}')`;
+                    chatMessagesContainer.style.backgroundColor = 'transparent'; // Or a fallback
+                } else {
+                     displayMessage('URL/Data gambar tidak valid. Kembali ke default.', 'app');
+                     resetChatBackgroundToDefault();
+                }
+            }
+        }
+        function resetChatBackgroundToDefault() {
+            appData.chatBackground = { type: 'color', value: getCurrentDefaultBgColor(), isDefault: true };
+            applyChatBackground();
+            saveAppData();
+        }
+        changeBackgroundButton.addEventListener('click', () => {
+            populateColorPalette();
+            imageUrlInput.value = (appData.chatBackground.type === 'image_url') ? appData.chatBackground.value : '';
+            backgroundModal.classList.remove('hidden');
+            closeMenu();
+        });
+        closeModalButton.addEventListener('click', () => backgroundModal.classList.add('hidden'));
+        backgroundModal.addEventListener('click', (event) => { if (event.target === backgroundModal) backgroundModal.classList.add('hidden'); });
+
+        function populateColorPalette() {
+            colorPaletteContainer.innerHTML = '';
+            PREDEFINED_COLORS.forEach(color => {
+                const swatch = document.createElement('div');
+                swatch.classList.add('color-swatch');
+                const colorValue = appData.darkMode ? color.darkValue : color.value;
+                swatch.style.backgroundColor = colorValue;
+                swatch.title = color.name;
+                if (appData.chatBackground.type === 'color' && appData.chatBackground.value === colorValue) {
+                    swatch.classList.add('selected');
+                }
+                swatch.addEventListener('click', () => {
+                    appData.chatBackground = { type: 'color', value: colorValue, isDefault: (colorValue === getCurrentDefaultBgColor()) };
+                    applyChatBackground();
+                    saveAppData();
+                    document.querySelectorAll('#color-palette .color-swatch').forEach(s => s.classList.remove('selected'));
+                    swatch.classList.add('selected');
+                });
+                colorPaletteContainer.appendChild(swatch);
+            });
+        }
+        applyImageUrlButton.addEventListener('click', () => {
+            const url = imageUrlInput.value.trim();
+            if (url) {
+                appData.chatBackground = { type: 'image_url', value: url, isDefault: false };
+                applyChatBackground();
+                saveAppData();
+            } else { displayMessage('URL gambar tidak boleh kosong.', 'app'); }
+        });
+        triggerImageUploadButton.addEventListener('click', () => imageUploadInput.click());
+        imageUploadInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    appData.chatBackground = { type: 'image_upload', value: e.target.result, isDefault: false };
+                    applyChatBackground();
+                    saveAppData();
+                };
+                reader.readAsDataURL(file);
+            } else if (file) {
+                displayMessage('Harap pilih file gambar (PNG, JPG, GIF, dll).', 'app');
+            }
+            imageUploadInput.value = ''; // Reset input
+        });
+        resetBackgroundButton.addEventListener('click', () => { resetChatBackgroundToDefault(); });
+
+        // --
