@@ -7,8 +7,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0D9488"> <link rel="apple-touch-icon" href="icons/icon-192x192.png"> <style>
+    <link rel="manifest" href="/pengeluaran/manifest.json">
+    <meta name="theme-color" content="#0D9488"> <link rel="apple-touch-icon" href="/pengeluaran/icons/icon-192x192.png">
+
+
+    <style>
         :root {
             --bg-primary: #F3F4F6;
             --bg-secondary: #E5E7EB;
@@ -149,7 +152,7 @@
     <div class="app-container">
         <header class="app-header p-4 flex items-center justify-between flex-shrink-0">
             <div class="flex items-center">
-                 <img src="icons/icon-48x48.png" alt="Logo Aplikasi" class="w-10 h-10 mr-3 p-1 bg-white rounded-full">
+                 <img src="/pengeluaran/icons/icon-48x48.png" alt="Logo Aplikasi" class="w-10 h-10 mr-3 p-1 bg-white rounded-full">
                 <div>
                     <h1 class="text-xl font-semibold">Asisten Keuangan</h1>
                     <p id="user-status" class="text-sm opacity-80">Lokal</p>
@@ -237,7 +240,7 @@
         const triggerImageUploadButton = document.getElementById('trigger-image-upload');
         const resetBackgroundButton = document.getElementById('reset-background');
 
-        const APP_DATA_KEY = 'expenseTrackerData_v4_pwa'; // Version up
+        const APP_DATA_KEY = 'expenseTrackerData_v4_pwa_github'; // Version up for path changes
         let appData = {
             expenses: [],
             darkMode: false,
@@ -256,7 +259,8 @@
         // --- PWA Service Worker Registration ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
+                // Adjust path for GitHub Pages repository name
+                navigator.serviceWorker.register('/pengeluaran/sw.js', { scope: '/pengeluaran/' }) 
                     .then(registration => {
                         console.log('ServiceWorker: Pendaftaran berhasil, scope: ', registration.scope);
                     })
@@ -273,11 +277,10 @@
                 const parsedData = JSON.parse(data);
                 appData = { ...appData, ...parsedData };
                 appData.expenses = appData.expenses.map(exp => ({ ...exp, timestamp: new Date(exp.timestamp) }));
-                if (!appData.chatBackground || typeof appData.chatBackground.isDefault === 'undefined') { // Ensure new structure
+                if (!appData.chatBackground || typeof appData.chatBackground.isDefault === 'undefined') {
                     appData.chatBackground = { type: 'color', value: getCurrentDefaultBgColor(), isDefault: true };
                 }
             }
-            // Ensure theme-color meta tag is updated based on loaded dark mode preference
             document.querySelector('meta[name="theme-color"]').setAttribute('content', appData.darkMode ? '#0F766E' : '#0D9488');
             applyDarkModePreference();
             applyChatBackground();
@@ -290,12 +293,12 @@
             const isDark = appData.darkMode;
             document.documentElement.classList.toggle('dark', isDark);
             darkModeToggle.textContent = `Mode Gelap: ${isDark ? 'Aktif' : 'Mati'}`;
-            document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark ? '#0F766E' : '#0D9488'); // Update theme-color for PWA
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', isDark ? '#0F766E' : '#0D9488');
             if (appData.chatBackground.isDefault) {
                  appData.chatBackground = { type: 'color', value: getCurrentDefaultBgColor(), isDefault: true };
                  applyChatBackground();
             }
-            populateColorPalette(); // Repopulate palette with correct dark/light colors
+            populateColorPalette();
         }
         darkModeToggle.addEventListener('click', () => {
             appData.darkMode = !appData.darkMode;
@@ -312,9 +315,8 @@
                 chatMessagesContainer.style.backgroundImage = 'none';
             } else if (bg.type === 'image_url' || bg.type === 'image_upload') {
                 if (bg.value && (bg.value.startsWith('http') || bg.value.startsWith('data:image'))) {
-                    // For URL, we can use it directly. For dataURL, it's already self-contained.
                     chatMessagesContainer.style.backgroundImage = `url('${bg.value}')`;
-                    chatMessagesContainer.style.backgroundColor = 'transparent'; // Or a fallback
+                    chatMessagesContainer.style.backgroundColor = 'transparent';
                 } else {
                      displayMessage('URL/Data gambar tidak valid. Kembali ke default.', 'app');
                      resetChatBackgroundToDefault();
@@ -378,8 +380,113 @@
             } else if (file) {
                 displayMessage('Harap pilih file gambar (PNG, JPG, GIF, dll).', 'app');
             }
-            imageUploadInput.value = ''; // Reset input
+            imageUploadInput.value = '';
         });
         resetBackgroundButton.addEventListener('click', () => { resetChatBackgroundToDefault(); });
 
-        // --
+        // --- Backup & Restore ---
+        backupDataButton.addEventListener('click', () => {
+            if (appData.expenses.length === 0 && appData.chatBackground.isDefault && !appData.darkMode) {
+                displayMessage('Tidak ada data kustom untuk di-backup.', 'app');
+                closeMenu(); return;
+            }
+            const jsonData = JSON.stringify(appData, null, 2);
+            const blob = new Blob([jsonData], { type: 'application/json' });
+            const dl_url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = dl_url;
+            const today = new Date();
+            const dateString = `${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}`;
+            a.download = `expenses_backup_${dateString}_v4_gh.json`; // Added gh to filename
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(dl_url);
+            displayMessage('Data berhasil di-backup.', 'app'); closeMenu();
+        });
+        restoreDataInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const restoredData = JSON.parse(e.target.result);
+                        if (restoredData && typeof restoredData.expenses !== 'undefined' && 
+                            typeof restoredData.darkMode !== 'undefined' && 
+                            typeof restoredData.chatBackground !== 'undefined' &&
+                            typeof restoredData.chatBackground.type !== 'undefined' &&
+                            typeof restoredData.chatBackground.value !== 'undefined'
+                            ) {
+                            appData = { ...appData, ...restoredData,
+                                expenses: restoredData.expenses.map(exp => ({ ...exp, timestamp: new Date(exp.timestamp) }))
+                            };
+                            if (typeof appData.chatBackground.isDefault === 'undefined') {
+                                appData.chatBackground.isDefault = (appData.chatBackground.type === 'color' && appData.chatBackground.value === getCurrentDefaultBgColor());
+                            }
+                            saveAppData(); applyDarkModePreference(); applyChatBackground();
+                            chatMessagesContainer.innerHTML = '';
+                            displayMessage('Data berhasil di-restore.', 'app');
+                        } else { displayMessage('Format file backup tidak valid atau versi lama. Restore dibatalkan.', 'app'); }
+                    } catch (error) { console.error("Error restoring data:", error); displayMessage(`Gagal restore: ${error.message}`, 'app'); }
+                };
+                reader.readAsText(file); restoreDataInput.value = '';
+            }
+        });
+        restoreDataButton.addEventListener('click', () => { restoreDataInput.click(); closeMenu(); });
+
+        // --- UI Helpers & Core Logic (mostly unchanged) ---
+        function displayMessage(text, sender) {
+            const messageContainerDiv = document.createElement('div');
+            messageContainerDiv.classList.add('chat-bubble-container');
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.classList.add('chat-bubble');
+            if (sender === 'user') {
+                messageContainerDiv.classList.add('user');
+                bubbleDiv.classList.add('chat-bubble-user');
+            } else {
+                messageContainerDiv.classList.add('app');
+                bubbleDiv.classList.add('chat-bubble-app');
+            }
+            bubbleDiv.innerHTML = text.replace(/\n/g, '<br>');
+            messageContainerDiv.appendChild(bubbleDiv);
+            chatMessagesContainer.appendChild(messageContainerDiv);
+            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        }
+        function showLoader(show) { fullScreenLoader.classList.toggle('hidden', !show); }
+        function closeMenu() { dropdownMenu.classList.remove('show');}
+        menuButton.addEventListener('click', (event) => { event.stopPropagation(); dropdownMenu.classList.toggle('show'); });
+        document.addEventListener('click', (event) => { if (!menuButton.contains(event.target) && !dropdownMenu.contains(event.target)) closeMenu(); });
+        function generateId() {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; const numbers = '0123456789'; let idChars = [];
+            for (let i = 0; i < 2; i++) { idChars.push(letters.charAt(Math.floor(Math.random() * letters.length))); idChars.push(numbers.charAt(Math.floor(Math.random() * numbers.length))); }
+            for (let i = idChars.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idChars[i], idChars[j]] = [idChars[j], idChars[i]]; }
+            return idChars.join('');
+        }
+        function recordExpense(item, amount) { const newExpense = { id: generateId(), item, amount, timestamp: new Date() }; appData.expenses.push(newExpense); saveAppData(); const formattedAmount = amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); displayMessage(`Pengeluaran: <strong>${item}</strong> (${formattedAmount}) tercatat. ID: <strong>${newExpense.id}</strong>.`, 'app'); }
+        function formatDate(date) { if (!(date instanceof Date) || isNaN(date)) return "Tgl invalid"; const d = date.getDate().toString().padStart(2, '0'); const m = (date.getMonth() + 1).toString().padStart(2, '0'); const y = date.getFullYear(); return `${d}/${m}/${y}`; }
+        function formatDateShort(date) { if (!(date instanceof Date) || isNaN(date)) return "Tgl invalid"; const d = date.getDate().toString().padStart(2, '0'); const m = (date.getMonth() + 1).toString().padStart(2, '0'); return `${d}/${m}`; }
+        function generateDailyReport() { const today = new Date(); const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0,0,0,0); const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23,59,59,999); const dailyExpenses = appData.expenses.filter(exp => exp.timestamp >= startOfDay && exp.timestamp <= endOfDay).sort((a,b) => a.timestamp - b.timestamp); let reportMessage = `<strong>Laporan Hari Ini (${formatDate(today)}):</strong>\n`; let totalExpenses = 0; if (dailyExpenses.length === 0) { reportMessage += "\nBelum ada pengeluaran hari ini."; } else { dailyExpenses.forEach(data => { const formattedAmount = data.amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); reportMessage += `\n- ${data.item}: ${formattedAmount} (ID: ${data.id})`; totalExpenses += data.amount; }); const formattedTotal = totalExpenses.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); reportMessage += `\n\n<strong>Total Hari Ini: ${formattedTotal}</strong>`; } displayMessage(reportMessage, 'app'); }
+        function generateMonthlyReport() { const today = new Date(); const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1,0,0,0,0); const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23,59,59,999); const monthlyExpenses = appData.expenses.filter(exp => exp.timestamp >= startOfMonth && exp.timestamp <= endOfMonth).sort((a,b) => a.timestamp - b.timestamp); const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]; let reportMessage = `<strong>Laporan Bulan ${monthNames[today.getMonth()]} ${today.getFullYear()}:</strong>\n`; let totalExpenses = 0; if (monthlyExpenses.length === 0) { reportMessage += "\nBelum ada pengeluaran bulan ini."; } else { monthlyExpenses.forEach(data => { const formattedAmount = data.amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); reportMessage += `\n- (${formatDateShort(data.timestamp)}) ${data.item}: ${formattedAmount} (ID: ${data.id})`; totalExpenses += data.amount; }); const formattedTotal = totalExpenses.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); reportMessage += `\n\n<strong>Total Bulan Ini: ${formattedTotal}</strong>`; } displayMessage(reportMessage, 'app'); }
+        function deleteExpense(expenseId) { const initialLength = appData.expenses.length; appData.expenses = appData.expenses.filter(exp => exp.id !== expenseId); if (appData.expenses.length < initialLength) { saveAppData(); displayMessage(`Pengeluaran ID: <strong>${expenseId}</strong> berhasil dihapus.`, 'app'); } else { displayMessage(`Pengeluaran ID: <strong>${expenseId}</strong> tidak ditemukan.`, 'app'); } }
+        function updateExpense(expenseId, newItem, newAmount) { const expenseIndex = appData.expenses.findIndex(exp => exp.id === expenseId); if (expenseIndex > -1) { appData.expenses[expenseIndex].item = newItem; appData.expenses[expenseIndex].amount = newAmount; appData.expenses[expenseIndex].timestamp = new Date(); saveAppData(); const formattedAmount = newAmount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); displayMessage(`Pengeluaran ID: <strong>${expenseId}</strong> diubah: <strong>${newItem}</strong> (${formattedAmount}).`, 'app'); } else { displayMessage(`Pengeluaran ID: <strong>${expenseId}</strong> tidak ditemukan.`, 'app'); } }
+        async function processUserInput(input) { if (!input.trim()) return; displayMessage(input, 'user'); messageInput.value = ''; showLoader(true); const lowerInput = input.toLowerCase().trim(); const expenseRegex = /^(?!ubah|hapus|laporan)(.+?)\s+(\d+)$/i; const updateRegex = /^ubah\s+([\w-]+)\s+(.+?)\s+(\d+)$/i; const deleteRegex = /^hapus\s+([\w-]+)$/i; const expenseMatch = input.match(expenseRegex); const updateMatch = input.match(updateRegex); const deleteMatch = input.match(deleteRegex); try { if (updateMatch) { const [, id, newItem, newAmountStr] = updateMatch; updateExpense(id.trim(), newItem.trim(), parseInt(newAmountStr, 10)); } else if (deleteMatch) { const [, id] = deleteMatch; deleteExpense(id.trim()); } else if (expenseMatch) { const [, itemName, itemAmountStr] = expenseMatch; recordExpense(itemName.trim(), parseInt(itemAmountStr, 10)); } else if (lowerInput === 'laporan hari ini') { generateDailyReport(); } else if (lowerInput === 'laporan bulan ini') { generateMonthlyReport(); } else { displayMessage('Perintah tidak dikenali. Contoh:\n- "Kopi 5000"\n- "Laporan Hari Ini"\n- "ubah id item jumlah"\n- "hapus id"', 'app'); } } catch (error) { console.error("Error processing input:", error); displayMessage(`Terjadi kesalahan: ${error.message}. Coba lagi.`, 'app'); } finally { showLoader(false); } }
+
+        // --- Event Listeners & Initialization ---
+        sendButton.addEventListener('click', () => processUserInput(messageInput.value));
+        messageInput.addEventListener('keypress', (event) => { if (event.key === 'Enter') processUserInput(messageInput.value); });
+        loadAppData();
+        displayMessage('Selamat datang! Aplikasi siap digunakan. Data disimpan lokal. Ketik pengeluaran atau perintah. Gunakan menu (⋮) untuk fitur lain.', 'app');
+    </script>
+</body>
+</html>
+
+<!--
+==========================================================================================
+KONTEN UNTUK FILE `manifest.json` (SIMPAN SEBAGAI `manifest.json` DI DIREKTORI YANG SAMA):
+==========================================================================================
+
+
+==========================================================================================
+KONTEN UNTUK FILE `sw.js` (SERVICE WORKER - SIMPAN SEBAGAI `sw.js` DI DIREKTORI YANG SAMA):
+==========================================================================================
+
+-->
+
