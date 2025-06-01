@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="manifest" href="/pengeluaran/manifest.json">
-    <meta name="theme-color" content="#0D9488"> <link rel="apple-touch-icon" href="/pengeluaran/icons/icon-192x192.png">
-
+    <meta name="theme-color" content="#0D9488">
+    <link rel="apple-touch-icon" href="/pengeluaran/icons/icon-192x192.png">
 
     <style>
         :root {
@@ -17,8 +17,8 @@
             --bg-secondary: #E5E7EB;
             --bg-accent: #FFFFFF;
             --text-primary: #1F2937;
-            --text-secondary: #4B5563;
-            --header-bg: #0D9488; /* teal-600 */
+            --text-secondary: #4B5563; /* Digunakan untuk teks footer juga */
+            --header-bg: #0D9488;
             --header-text: #FFFFFF;
             --bubble-user-bg: #DCF8C6;
             --bubble-user-text: #1F2937;
@@ -37,6 +37,8 @@
             --modal-text: #1F2937;
             --modal-overlay-bg: rgba(0,0,0,0.5);
             --default-chat-bg-color: #ECE5DD;
+            --footer-extra-bg: var(--bg-secondary); /* Sama dengan app-footer */
+            --footer-extra-text: var(--text-secondary);
         }
 
         html.dark {
@@ -44,8 +46,8 @@
             --bg-secondary: #374151;
             --bg-accent: #4B5563;
             --text-primary: #F3F4F6;
-            --text-secondary: #D1D5DB;
-            --header-bg: #0F766E; /* teal-700 */
+            --text-secondary: #9CA3AF; /* Sedikit lebih terang untuk dark mode footer */
+            --header-bg: #0F766E;
             --header-text: #F3F4F6;
             --bubble-user-bg: #075E54;
             --bubble-user-text: #F3F4F6;
@@ -64,6 +66,8 @@
             --modal-text: #F3F4F6;
             --modal-overlay-bg: rgba(0,0,0,0.7);
             --default-chat-bg-color: #08313A;
+            --footer-extra-bg: var(--bg-secondary);
+            --footer-extra-text: var(--text-secondary);
         }
 
         body {
@@ -101,9 +105,18 @@
             background-color: var(--bubble-app-bg); color: var(--bubble-app-text);
             border: 1px solid var(--bubble-app-border); border-bottom-left-radius: 5px;
         }
-        .app-footer {
+        .app-footer { /* Kontainer untuk input pesan */
             background-color: var(--bg-secondary);
             border-top: 1px solid var(--bubble-app-border);
+        }
+        .app-footer-extra { /* Kontainer untuk jam dan kredit */
+            background-color: var(--footer-extra-bg);
+            color: var(--footer-extra-text);
+            padding: 8px 12px; /* Padding yang sesuai */
+            text-align: center;
+            font-size: 0.75rem; /* Ukuran font lebih kecil */
+            line-height: 1rem;
+            border-top: 1px solid var(--bubble-app-border); /* Garis pemisah jika diperlukan */
         }
         #message-input {
             background-color: var(--bg-accent); color: var(--text-primary);
@@ -192,6 +205,10 @@
                 </button>
             </div>
         </footer>
+        <div class="app-footer-extra flex-shrink-0">
+            <div id="clock" class="mb-1">Memuat waktu...</div>
+            <div>Made with ❤️ by kopilnux & Gemini AI</div>
+        </div>
     </div>
 
     <div id="background-modal" class="modal fixed inset-0 flex items-center justify-center z-[90] hidden">
@@ -222,6 +239,7 @@
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-button');
         const fullScreenLoader = document.getElementById('full-screen-loader');
+        const clockElement = document.getElementById('clock'); // Element untuk jam
 
         const menuButton = document.getElementById('menu-button');
         const dropdownMenu = document.getElementById('dropdown-menu');
@@ -240,7 +258,7 @@
         const triggerImageUploadButton = document.getElementById('trigger-image-upload');
         const resetBackgroundButton = document.getElementById('reset-background');
 
-        const APP_DATA_KEY = 'expenseTrackerData_v4_pwa_github'; // Version up for path changes
+        const APP_DATA_KEY = 'expenseTrackerData_v5_pwa_footer'; // Version up
         let appData = {
             expenses: [],
             darkMode: false,
@@ -259,7 +277,6 @@
         // --- PWA Service Worker Registration ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Adjust path for GitHub Pages repository name
                 navigator.serviceWorker.register('/pengeluaran/sw.js', { scope: '/pengeluaran/' }) 
                     .then(registration => {
                         console.log('ServiceWorker: Pendaftaran berhasil, scope: ', registration.scope);
@@ -269,6 +286,25 @@
                     });
             });
         }
+
+        // --- Real-time Clock ---
+        function updateClock() {
+            const now = new Date();
+            const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+            const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            
+            const dayName = days[now.getDay()];
+            const day = now.getDate().toString().padStart(2, '0');
+            const monthName = months[now.getMonth()];
+            const year = now.getFullYear();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+
+            clockElement.textContent = `${dayName}, ${day} ${monthName} ${year} - ${hours}:${minutes}:${seconds}`;
+        }
+        setInterval(updateClock, 1000); // Update setiap detik
+        updateClock(); // Panggil sekali saat load
 
         // --- Local Storage ---
         function loadAppData() {
@@ -397,7 +433,7 @@
             a.href = dl_url;
             const today = new Date();
             const dateString = `${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}`;
-            a.download = `expenses_backup_${dateString}_v4_gh.json`; // Added gh to filename
+            a.download = `expenses_backup_${dateString}_v5.json`;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(dl_url);
             displayMessage('Data berhasil di-backup.', 'app'); closeMenu();
@@ -422,8 +458,8 @@
                                 appData.chatBackground.isDefault = (appData.chatBackground.type === 'color' && appData.chatBackground.value === getCurrentDefaultBgColor());
                             }
                             saveAppData(); applyDarkModePreference(); applyChatBackground();
-                            chatMessagesContainer.innerHTML = '';
-                            displayMessage('Data berhasil di-restore.', 'app');
+                            chatMessagesContainer.innerHTML = ''; // Hapus pesan lama
+                            displayMessage('Data berhasil di-restore. Silakan mulai percakapan baru atau minta laporan.', 'app');
                         } else { displayMessage('Format file backup tidak valid atau versi lama. Restore dibatalkan.', 'app'); }
                     } catch (error) { console.error("Error restoring data:", error); displayMessage(`Gagal restore: ${error.message}`, 'app'); }
                 };
@@ -432,7 +468,7 @@
         });
         restoreDataButton.addEventListener('click', () => { restoreDataInput.click(); closeMenu(); });
 
-        // --- UI Helpers & Core Logic (mostly unchanged) ---
+        // --- UI Helpers & Core Logic ---
         function displayMessage(text, sender) {
             const messageContainerDiv = document.createElement('div');
             messageContainerDiv.classList.add('chat-bubble-container');
@@ -482,7 +518,6 @@
 ==========================================================================================
 KONTEN UNTUK FILE `manifest.json` (SIMPAN SEBAGAI `manifest.json` DI DIREKTORI YANG SAMA):
 ==========================================================================================
-
 
 ==========================================================================================
 KONTEN UNTUK FILE `sw.js` (SERVICE WORKER - SIMPAN SEBAGAI `sw.js` DI DIREKTORI YANG SAMA):

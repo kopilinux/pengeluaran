@@ -1,13 +1,11 @@
-const CACHE_NAME = 'asisten-keuangan-cache-v1-gh'; // Nama cache baru untuk GitHub Pages
-const REPO_NAME = '/pengeluaran'; // Nama repositori Anda
+const CACHE_NAME = 'asisten-keuangan-cache-v2-gh-footer'; // Nama cache baru
+const REPO_NAME = '/pengeluaran';
 
 const urlsToCache = [
   `${REPO_NAME}/`, 
   `${REPO_NAME}/index.html`,
-  // Aset CDN tidak perlu diawali REPO_NAME
   'https://cdn.tailwindcss.com',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-  // Path ke ikon Anda, diawali REPO_NAME
   `${REPO_NAME}/icons/icon-48x48.png`,
   `${REPO_NAME}/icons/icon-72x72.png`,
   `${REPO_NAME}/icons/icon-96x96.png`,
@@ -20,18 +18,17 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
-  console.log('[ServiceWorker] Install event for GitHub Pages');
+  console.log('[ServiceWorker] Install event v2 (footer)');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('[ServiceWorker] Opened cache:', CACHE_NAME);
         const promises = urlsToCache.map(url => {
-          // Untuk aset lokal, request normal. Untuk CDN, bisa no-cors jika perlu.
-          const request = new Request(url, (url.startsWith('http') ? { mode: 'no-cors' } : {}));
+          const request = new Request(url, (url.startsWith('http') ? { mode: 'no-cors', cache: 'reload' } : {cache: 'reload'})); // cache: 'reload' to bypass browser http cache
           return fetch(request)
             .then(response => {
               if (response.status === 200 || response.type === 'opaque') {
-                 return cache.put(url, response); // Cache URL asli, bukan objek Request
+                 return cache.put(url, response);
               }
               console.warn(`[ServiceWorker] Failed to fetch and cache (status ${response.status}): ${url}`);
               return Promise.resolve();
@@ -51,7 +48,7 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  console.log('[ServiceWorker] Activate event for GitHub Pages');
+  console.log('[ServiceWorker] Activate event v2 (footer)');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -71,38 +68,52 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Strategi: Cache first untuk semua aset, karena kita sudah cache index.html
+  // Strategi: Network falling back to Cache untuk navigasi (HTML)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Jika berhasil dari network, cache responsnya (jika itu adalah halaman utama)
+          if (response.ok && (event.request.url.endsWith(`${REPO_NAME}/`) || event.request.url.endsWith(`${REPO_NAME}/index.html`))) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Jika network gagal, coba dari cache untuk halaman utama
+          return caches.match(event.request.url.endsWith(`${REPO_NAME}/`) ? `${REPO_NAME}/index.html` : event.request);
+        })
+    );
+    return;
+  }
+
+  // Strategi: Cache first, falling back to Network untuk aset lain
   event.respondWith(
     caches.match(event.request)
       .then(cachedResponse => {
         if (cachedResponse) {
-          // console.log('[ServiceWorker] Serving from cache:', event.request.url);
           return cachedResponse;
         }
-
-        // console.log('[ServiceWorker] Fetching from network:', event.request.url);
         return fetch(event.request).then(
           networkResponse => {
             if (networkResponse && networkResponse.ok) {
-              // Hanya cache jika URL ada di daftar urlsToCache atau merupakan navigasi utama
-              // Ini untuk menghindari caching semua request API eksternal yang tidak perlu
-              const shouldCache = urlsToCache.includes(event.request.url) || event.request.mode === 'navigate';
-              if (shouldCache) {
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME)
-                  .then(cache => {
-                    cache.put(event.request, responseToCache);
-                  });
+              // Cache hanya jika URL ada di daftar urlsToCache
+              if (urlsToCache.includes(event.request.url) || urlsToCache.includes(new URL(event.request.url).pathname)) {
+                 const responseToCache = networkResponse.clone();
+                 caches.open(CACHE_NAME)
+                   .then(cache => {
+                     cache.put(event.request, responseToCache);
+                   });
               }
             }
             return networkResponse;
           }
         ).catch(error => {
-          console.error('[ServiceWorker] Fetch failed for:', event.request.url, error);
-          // Jika request adalah untuk index.html dan gagal (offline), coba sajikan dari cache
-          if (event.request.mode === 'navigate' && event.request.url.endsWith('/pengeluaran/') || event.request.url.endsWith('/pengeluaran/index.html')) {
-            return caches.match(`${REPO_NAME}/index.html`);
-          }
+          console.error('[ServiceWorker] Fetch failed for asset:', event.request.url, error);
+          // Anda bisa menyediakan fallback offline generik untuk gambar/aset di sini jika perlu
         });
       })
   );
