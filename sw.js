@@ -1,40 +1,40 @@
-const CACHE_NAME = 'asisten-keuangan-cache-v1'; // Ubah v1 jika ada pembaruan besar
+const CACHE_NAME = 'asisten-keuangan-cache-v1-gh'; // Nama cache baru untuk GitHub Pages
+const REPO_NAME = '/pengeluaran'; // Nama repositori Anda
+
 const urlsToCache = [
-  './', // Alias untuk index.html
-  './index.html',
-  // './style.css', // Jika Anda memisahkan CSS
-  // './app.js', // Jika Anda memisahkan JavaScript utama
-  'https://cdn.tailwindcss.com', // Cache Tailwind CSS
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap', // Cache Font
-  // Tambahkan path ke ikon Anda di sini, contoh:
-  './icons/icon-48x48.png',
-  './icons/icon-72x72.png',
-  './icons/icon-96x96.png',
-  './icons/icon-128x128.png',
-  './icons/icon-144x144.png',
-  './icons/icon-152x152.png',
-  './icons/icon-192x192.png',
-  './icons/icon-384x384.png',
-  './icons/icon-512x512.png'
-  // Tidak perlu cache manifest.json secara eksplisit di sini
+  `${REPO_NAME}/`, 
+  `${REPO_NAME}/index.html`,
+  // Aset CDN tidak perlu diawali REPO_NAME
+  'https://cdn.tailwindcss.com',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+  // Path ke ikon Anda, diawali REPO_NAME
+  `${REPO_NAME}/icons/icon-48x48.png`,
+  `${REPO_NAME}/icons/icon-72x72.png`,
+  `${REPO_NAME}/icons/icon-96x96.png`,
+  `${REPO_NAME}/icons/icon-128x128.png`,
+  `${REPO_NAME}/icons/icon-144x144.png`,
+  `${REPO_NAME}/icons/icon-152x152.png`,
+  `${REPO_NAME}/icons/icon-192x192.png`,
+  `${REPO_NAME}/icons/icon-384x384.png`,
+  `${REPO_NAME}/icons/icon-512x512.png`
 ];
 
 self.addEventListener('install', event => {
-  console.log('[ServiceWorker] Install event');
+  console.log('[ServiceWorker] Install event for GitHub Pages');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('[ServiceWorker] Opened cache:', CACHE_NAME);
-        // Beberapa aset CDN mungkin gagal di-cache karena CORS, jadi kita tidak block install event
-        // dengan cache.addAll([...]). Kita cache satu per satu dan tangani error.
         const promises = urlsToCache.map(url => {
-          return fetch(new Request(url, { mode: 'no-cors' })) // no-cors untuk CDN jika perlu
+          // Untuk aset lokal, request normal. Untuk CDN, bisa no-cors jika perlu.
+          const request = new Request(url, (url.startsWith('http') ? { mode: 'no-cors' } : {}));
+          return fetch(request)
             .then(response => {
-              if (response.status === 200 || response.type === 'opaque') { // Opaque untuk no-cors
-                 return cache.put(url, response);
+              if (response.status === 200 || response.type === 'opaque') {
+                 return cache.put(url, response); // Cache URL asli, bukan objek Request
               }
               console.warn(`[ServiceWorker] Failed to fetch and cache (status ${response.status}): ${url}`);
-              return Promise.resolve(); // Jangan gagalkan semua jika satu gagal
+              return Promise.resolve();
             })
             .catch(err => {
               console.warn(`[ServiceWorker] Failed to fetch and cache (network error): ${url}`, err);
@@ -45,13 +45,13 @@ self.addEventListener('install', event => {
       })
       .then(() => {
         console.log('[ServiceWorker] All specified assets attempted to be cached.');
-        return self.skipWaiting(); // Aktifkan service worker baru segera
+        return self.skipWaiting();
       })
   );
 });
 
 self.addEventListener('activate', event => {
-  console.log('[ServiceWorker] Activate event');
+  console.log('[ServiceWorker] Activate event for GitHub Pages');
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
@@ -62,62 +62,48 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    }).then(() => self.clients.claim()) // Ambil kontrol halaman yang terbuka segera
+    }).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', event => {
-  // Hanya tangani request GET
   if (event.request.method !== 'GET') {
     return;
   }
 
-  // Strategi: Coba cache dulu, lalu network.
-  // Untuk request navigasi (HTML), coba network dulu untuk konten terbaru, fallback ke cache.
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // Jika berhasil dari network, cache responsnya
-          if (response.ok) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          // Jika network gagal, coba dari cache
-          return caches.match(event.request);
-        })
-    );
-  } else {
-    // Untuk aset lain (CSS, JS, gambar), cache first
-    event.respondWith(
-      caches.match(event.request)
-        .then(response => {
-          if (response) {
-            // console.log('[ServiceWorker] Serving from cache:', event.request.url);
-            return response; // Ditemukan di cache
-          }
-          // console.log('[ServiceWorker] Fetching from network:', event.request.url);
-          return fetch(event.request).then(
-            networkResponse => {
-              if (networkResponse && networkResponse.ok) {
+  // Strategi: Cache first untuk semua aset, karena kita sudah cache index.html
+  event.respondWith(
+    caches.match(event.request)
+      .then(cachedResponse => {
+        if (cachedResponse) {
+          // console.log('[ServiceWorker] Serving from cache:', event.request.url);
+          return cachedResponse;
+        }
+
+        // console.log('[ServiceWorker] Fetching from network:', event.request.url);
+        return fetch(event.request).then(
+          networkResponse => {
+            if (networkResponse && networkResponse.ok) {
+              // Hanya cache jika URL ada di daftar urlsToCache atau merupakan navigasi utama
+              // Ini untuk menghindari caching semua request API eksternal yang tidak perlu
+              const shouldCache = urlsToCache.includes(event.request.url) || event.request.mode === 'navigate';
+              if (shouldCache) {
                 const responseToCache = networkResponse.clone();
                 caches.open(CACHE_NAME)
                   .then(cache => {
                     cache.put(event.request, responseToCache);
                   });
               }
-              return networkResponse;
             }
-          ).catch(error => {
-            console.error('[ServiceWorker] Fetch failed for:', event.request.url, error);
-            // Anda bisa menyediakan fallback offline di sini jika perlu
-          });
-        })
-    );
-  }
+            return networkResponse;
+          }
+        ).catch(error => {
+          console.error('[ServiceWorker] Fetch failed for:', event.request.url, error);
+          // Jika request adalah untuk index.html dan gagal (offline), coba sajikan dari cache
+          if (event.request.mode === 'navigate' && event.request.url.endsWith('/pengeluaran/') || event.request.url.endsWith('/pengeluaran/index.html')) {
+            return caches.match(`${REPO_NAME}/index.html`);
+          }
+        });
+      })
+  );
 });
