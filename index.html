@@ -518,10 +518,186 @@
 ==========================================================================================
 KONTEN UNTUK FILE `manifest.json` (SIMPAN SEBAGAI `manifest.json` DI DIREKTORI YANG SAMA):
 ==========================================================================================
+{
+  "name": "Asisten Keuangan Harian",
+  "short_name": "AsistenKeu",
+  "description": "Aplikasi pencatat pengeluaran harian dengan antarmuka chat.",
+  "start_url": "/pengeluaran/",
+  "display": "standalone",
+  "background_color": "#E5E7EB", 
+  "theme_color": "#0D9488",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/pengeluaran/icons/icon-72x72.png", "sizes": "72x72", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pengeluaran/icons/icon-96x96.png", "sizes": "96x96", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pengeluaran/icons/icon-128x128.png", "sizes": "128x128", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pengeluaran/icons/icon-144x144.png", "sizes": "144x144", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pengeluaran/icons/icon-152x152.png", "sizes": "152x152", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pengeluaran/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pengeluaran/icons/icon-384x384.png", "sizes": "384x384", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/pengeluaran/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
 
 ==========================================================================================
 KONTEN UNTUK FILE `sw.js` (SERVICE WORKER - SIMPAN SEBAGAI `sw.js` DI DIREKTORI YANG SAMA):
 ==========================================================================================
+const CACHE_NAME = 'asisten-keuangan-cache-v2-gh-footer'; // Nama cache baru
+const REPO_NAME = '/pengeluaran';
 
+const urlsToCache = [
+  `${REPO_NAME}/`, 
+  `${REPO_NAME}/index.html`,
+  'https://cdn.tailwindcss.com',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+  `${REPO_NAME}/icons/icon-48x48.png`,
+  `${REPO_NAME}/icons/icon-72x72.png`,
+  `${REPO_NAME}/icons/icon-96x96.png`,
+  `${REPO_NAME}/icons/icon-128x128.png`,
+  `${REPO_NAME}/icons/icon-144x144.png`,
+  `${REPO_NAME}/icons/icon-152x152.png`,
+  `${REPO_NAME}/icons/icon-192x192.png`,
+  `${REPO_NAME}/icons/icon-384x384.png`,
+  `${REPO_NAME}/icons/icon-512x512.png`
+];
+
+self.addEventListener('install', event => {
+  console.log('[ServiceWorker] Install event v2 (footer)');
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('[ServiceWorker] Opened cache:', CACHE_NAME);
+        const promises = urlsToCache.map(url => {
+          const request = new Request(url, (url.startsWith('http') ? { mode: 'no-cors', cache: 'reload' } : {cache: 'reload'})); // cache: 'reload' to bypass browser http cache
+          return fetch(request)
+            .then(response => {
+              if (response.status === 200 || response.type === 'opaque') {
+                 return cache.put(url, response);
+              }
+              console.warn(`[ServiceWorker] Failed to fetch and cache (status ${response.status}): ${url}`);
+              return Promise.resolve();
+            })
+            .catch(err => {
+              console.warn(`[ServiceWorker] Failed to fetch and cache (network error): ${url}`, err);
+              return Promise.resolve();
+            });
+        });
+        return Promise.all(promises);
+      })
+      .then(() => {
+        console.log('[ServiceWorker] All specified assets attempted to be cached.');
+        return self.skipWaiting();
+      })
+  );
+});
+
+self.addEventListener('activate', event => {
+  console.log('[ServiceWorker] Activate event v2 (footer)');
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[ServiceWorker] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // Strategi: Network falling back to Cache untuk navigasi (HTML)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Jika berhasil dari network, cache responsnya (jika itu adalah halaman utama)
+          if (response.ok && (event.request.url.endsWith(`${REPO_NAME}/`) || event.request.url.endsWith(`${REPO_NAME}/index.html`))) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Jika network gagal, coba dari cache untuk halaman utama
+          return caches.match(event.request.url.endsWith(`${REPO_NAME}/`) ? `${REPO_NAME}/index.html` : event.request);
+        })
+    );
+    return;
+  }
+
+  // Strategi: Cache first, falling back to Network untuk aset lain
+  event.respondWith(
+    caches.match(event.request)
+      .then(cachedResponse => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return fetch(event.request).then(
+          networkResponse => {
+            if (networkResponse && networkResponse.ok) {
+              // Cache hanya jika URL ada di daftar urlsToCache
+              if (urlsToCache.includes(event.request.url) || urlsToCache.includes(new URL(event.request.url).pathname)) {
+                 const responseToCache = networkResponse.clone();
+                 caches.open(CACHE_NAME)
+                   .then(cache => {
+                     cache.put(event.request, responseToCache);
+                   });
+              }
+            }
+            return networkResponse;
+          }
+        ).catch(error => {
+          console.error('[ServiceWorker] Fetch failed for asset:', event.request.url, error);
+          // Anda bisa menyediakan fallback offline generik untuk gambar/aset di sini jika perlu
+        });
+      })
+  );
+});
 -->
+```
 
+**Perubahan Utama pada Versi Ini:**
+
+1.  **Footer Tambahan untuk Jam dan Kredit**:
+    * Div baru `<div class="app-footer-extra flex-shrink-0">` ditambahkan di bawah footer input pesan.
+    * Di dalamnya ada `<div id="clock">` untuk menampilkan jam dan div untuk kredit.
+    * CSS ditambahkan untuk styling `app-footer-extra` dan `clock`.
+    * Variabel CSS `--footer-extra-bg` dan `--footer-extra-text` ditambahkan untuk tema.
+
+2.  **JavaScript untuk Jam Realtime**:
+    * Fungsi `updateClock()` ditambahkan untuk mendapatkan dan memformat tanggal dan waktu saat ini (Hari, Tanggal Bulan Tahun - HH:MM:SS).
+    * `setInterval(updateClock, 1000)` memanggil fungsi ini setiap detik.
+    * `updateClock()` juga dipanggil sekali saat load untuk tampilan awal.
+
+3.  **Perbaikan Logika Service Worker (`sw.js`)**:
+    * **Nama Cache Baru**: `CACHE_NAME` diubah menjadi `'asisten-keuangan-cache-v2-gh-footer'` untuk memastikan pembaruan.
+    * **Strategi Fetch yang Disempurnakan**:
+        * **Untuk Navigasi (request HTML utama)**: Sekarang menggunakan strategi **Network falling back to Cache**. Ini berarti browser akan selalu mencoba mengambil versi terbaru dari `index.html` dari jaringan. Jika jaringan gagal (offline), baru akan disajikan dari cache. Ini membantu memastikan pengguna mendapatkan update aplikasi lebih cepat jika online.
+        * **Untuk Aset Lain (CSS, JS, Gambar, Font)**: Tetap menggunakan strategi **Cache first, falling back to Network**. Jika aset ada di cache, akan disajikan dari sana. Jika tidak, akan diambil dari jaringan dan di-cache untuk penggunaan berikutnya.
+        * **Caching pada Install**: Menambahkan `{cache: 'reload'}` pada `fetch` di event `install` untuk mencoba melewati cache HTTP browser saat mengambil aset untuk di-cache oleh Service Worker, memastikan aset yang paling baru yang di-cache.
+    * **Logging**: Menambahkan log yang lebih deskriptif di Service Worker untuk mempermudah debugging.
+
+**Langkah-Langkah Debugging PWA di Ponsel (jika masih bermasalah):**
+
+1.  **Pastikan Path Benar**: Semua path di HTML, `manifest.json`, dan `sw.js` harus diawali dengan `/pengeluaran/` jika `index.html` Anda ada di root repositori `pengeluaran`.
+2.  **Clear Cache Ponsel**: Di browser ponsel Anda, hapus cache dan data situs untuk domain GitHub Pages Anda.
+3.  **Unregister Service Worker Lama (jika bisa)**:
+    * Jika menggunakan Chrome di Android, Anda bisa menghubungkan ponsel ke komputer via USB, aktifkan USB Debugging di ponsel.
+    * Buka Chrome di komputer, ketik `chrome://inspect`.
+    * Temukan tab browser ponsel Anda dan klik "inspect". Ini akan membuka Developer Tools untuk halaman di ponsel Anda.
+    * Di Developer Tools, pergi ke tab "Application" -> "Service Workers". Anda bisa "Unregister" service worker yang ada, centang "Update on reload", lalu refresh halaman di ponsel.
+4.  **Cek Manifest**: Di Developer Tools (via remote debugging jika di ponsel), di tab "Application" -> "Manifest", pastikan tidak ada error dan semua field (terutama `start_url` dan ikon) terbaca dengan benar.
+5.  **Cek Konsol**: Perhatikan pesan error di konsol Developer Tools. Mungkin ada error saat pendaftaran SW atau saat SW mencoba mengambil aset.
+6.  **Validasi `manifest.json`**: Gunakan validator online untuk memastikan `manifest.json` Anda valid.
+7.  **Scope Service Worker**: Pastikan scope Service Worker (`/pengeluaran/`) sudah benar dan Service Worker aktif untuk scope tersebut.
+
+Dengan penambahan footer dan penyempurnaan Service Worker ini, semoga aplikasi PWA Anda berjalan lebih baik dan sesuai harap
